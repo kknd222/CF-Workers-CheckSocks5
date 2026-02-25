@@ -95,12 +95,17 @@ export default {
             }
         }
         if (env.TOKEN) {
-            return new Response(await nginx(), {
-                headers: {
-                    'Content-Type': 'text/html; charset=UTF-8',
-                },
-            });
-        } else if (env.URL302) return Response.redirect(env.URL302, 302);
+            const 请求TOKEN = url.searchParams.get('token');
+            if (请求TOKEN !== 永久TOKEN) {
+                return new Response(await nginx(), {
+                    headers: {
+                        'Content-Type': 'text/html; charset=UTF-8',
+                    },
+                });
+            }
+        }
+
+        if (env.URL302) return Response.redirect(env.URL302, 302);
         else if (env.URL) return await 代理URL(env.URL, url);
         else {
             const 网站图标 = env.ICO ? `<link rel="icon" href="${env.ICO}" type="image/x-icon">` : '';
@@ -1284,6 +1289,15 @@ async function HTML(网站图标, 网络备案, img) {
     <script>
         let currentDomainInfo = null; // 存储当前域名的所有IP信息
         let currentProxyTemplate = null; // 存储代理模板
+        const pageToken = new URLSearchParams(window.location.search).get('token') || '';
+        const defaultToken = ${JSON.stringify(永久TOKEN)};
+        const apiToken = pageToken || defaultToken || '';
+
+        function withToken(path) {
+            if (!apiToken) return path;
+            const separator = path.includes('?') ? '&' : '?';
+            return path + separator + 'token=' + encodeURIComponent(apiToken);
+        }
 
         function preprocessProxyUrl(input) {
             let processed = input.trim();
@@ -1762,7 +1776,7 @@ async function HTML(网站图标, 网络备案, img) {
                 // 更新出口信息
                 const newProxyUrl = replaceHostInProxy(currentProxyTemplate, selectedIP);
                 const encodedProxy = encodeURIComponent(newProxyUrl);
-                const proxyResponse = await fetch(\`/check?proxy=\${encodedProxy}\`);
+                const proxyResponse = await fetch(withToken(\`/check?proxy=\${encodedProxy}\`));
                 const proxyData = await proxyResponse.json();
                 
                 if (!proxyData.success) {
@@ -1783,7 +1797,7 @@ async function HTML(网站图标, 网络备案, img) {
         
         async function fetchEntryInfo(host, retryCount = 0) {
             try {
-                const response = await fetch(\`/ip-info?ip=\${encodeURIComponent(host)}&token=${临时TOKEN}\`);
+                const response = await fetch(withToken(\`/ip-info?ip=\${encodeURIComponent(host)}\`));
                 const data = await response.json();
                 
                 if (data.error && retryCount < 3) {
@@ -1866,7 +1880,7 @@ async function HTML(网站图标, 网络备案, img) {
                     fetchEntryInfo(entryQueryIP),
                     (async () => {
                         const encodedProxy = encodeURIComponent(targetProxyUrl);
-                        const proxyResponse = await fetch(\`/check?proxy=\${encodedProxy}\`);
+                        const proxyResponse = await fetch(withToken(\`/check?proxy=\${encodedProxy}\`));
                         return proxyResponse.json();
                     })()
                 ]);
